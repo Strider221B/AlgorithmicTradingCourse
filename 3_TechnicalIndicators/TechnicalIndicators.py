@@ -29,7 +29,7 @@ class TechnicalIndicators:
     @staticmethod
     def add_bollinger(df: pd.DataFrame, period: int = 20) -> None:
         df['MA'] = df['Adj Close'].rolling(period).mean()
-        df['TwoSD'] = 2 * df['MA'].rolling(period).std()
+        df['TwoSD'] = 2 * df['Adj Close'].rolling(period).std(ddof=0)
         df['BB_up'] = df['MA'] + df['TwoSD']
         df['BB_dn'] = df['MA'] - df['TwoSD']
         df['BB_Width'] = df['BB_up'] - df['BB_dn']
