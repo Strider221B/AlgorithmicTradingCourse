@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import statsmodels.api as sm
+from stocktrends import Renko
 
 class TechnicalIndicators:
     
@@ -155,3 +156,20 @@ class TechnicalIndicators:
             slopes.append(slope)
         slope_angle = (np.rad2deg(np.arctan(np.array(slopes))))
         return slope_angle
+    
+    @staticmethod
+    def get_renko_df(df_orig: pd.DataFrame) -> pd.DataFrame:
+        df = df_orig.copy()
+        df.reset_index(inplace=True)
+        df = df.iloc[:, [0, 1, 2, 3, 5, 6]]
+        df.rename(columns = {"Date" : "date",
+                             "High" : "high",
+                             "Low" : "low",
+                             "Open" : "open",
+                             "Adj Close" : "close",
+                             "Volume" : "volume"}, inplace = True)
+        df2 = Renko(df)
+        TechnicalIndicators.add_atr(df_orig, 120)
+        df2.brick_size = round(df_orig['ATR'][-1], 0)
+        renko_df = df2.get_ohlc_data()
+        return renko_df

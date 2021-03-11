@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import statsmodels.api as sm
 import yfinance as yf
+from stocktrends import Renko
 
 def ATR(DF,n):
     "function to calculate True Range and Average True Range"
@@ -165,3 +166,14 @@ def slope_n_points(ser,n):
         slopes.append(slope)
     slope_angle = (np.rad2deg(np.arctan(np.array(slopes))))
     return np.array(slope_angle)
+
+def renko_DF(DF):
+    "function to convert ohlc data into renko bricks"
+    df = DF.copy()
+    df.reset_index(inplace=True)
+    df = df.iloc[:,[0,1,2,3,5,6]]
+    df.rename(columns = {"Date" : "date", "High" : "high","Low" : "low", "Open" : "open","Adj Close" : "close", "Volume" : "volume"}, inplace = True)
+    df2 = Renko(df)
+    df2.brick_size = round(ATR(DF,120)["ATR"][-1],0)
+    renko_df = df2.get_ohlc_data() #if using older version of the library please use get_bricks() instead
+    return renko_df
