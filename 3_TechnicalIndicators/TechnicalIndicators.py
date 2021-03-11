@@ -57,3 +57,50 @@ class TechnicalIndicators:
         df['RSI'] = 100 - (100 / (1 + df['RS']))
         df.drop(['Delta', 'Gain', 'Loss'], axis=1, inplace=True)
         df.dropna(inplace=True)
+        
+    @staticmethod
+    def add_adx(df: pd.DataFrame, period: int = 14) -> None:
+        TechnicalIndicators.add_atr(df, period)
+        df['DMPlus'] = np.where((df['High'] - df['High'].shift(1)) > (df['Low'].shift(1) - df['Low']), df['High'] - df['High'].shift(1), 0)
+        df['DMPlus'] = np.where(df['DMPlus'] < 0, 0, df['DMPlus'])
+        df['DMMinus'] = np.where((df['Low'].shift(1) - df['Low']) > (df['High'] - df['High'].shift(1)), (df['Low'].shift(1) - df['Low']), 0)
+        df['DMMinus'] = np.where(df['DMMinus'] < 0, 0, df['DMMinus'])
+        TRn = []
+        DMplusN = []
+        DMminusN = []
+        TR = df['TR'].values
+        DMplus = df['DMPlus'].values
+        DMminus = df['DMMinus'].values
+        for i in range(len(df)):
+            if i < period:
+                TRn.append(np.NaN)
+                DMplusN.append(np.NaN)
+                DMminusN.append(np.NaN)
+            elif i == period:
+                TRn.append(df['TR'].rolling(period).sum().values[period])
+                DMplusN.append(df['DMPlus'].rolling(period).sum().values[period])
+                DMminusN.append(df['DMMinus'].rolling(period).sum().values[period])
+            else:
+                TRn.append(TRn[i-1] - (TRn[i-1]/period) + TR[i])
+                DMplusN.append(DMplusN[i-1] - (DMplusN[i-1]/period) + DMplus[i])
+                DMminusN.append(DMminusN[i-1] - (DMminusN[i-1]/period) + DMminus[i])
+        df['TRn'] = np.array(TRn)
+        df['DMplusN'] = np.array(DMplusN)
+        df['DMminusN'] = np.array(DMminusN)
+        df['DIplusN'] = 100*(df['DMplusN'] / df['TRn'])
+        df['DIminusN'] = 100*(df['DMminusN'] / df['TRn'])
+        df['DIdiff'] = abs(df['DIplusN'] - df['DIminusN'])
+        df['DIsum'] = df['DIplusN'] + df['DIminusN']
+        df['DX'] = 100*(df['DIdiff'] / df['DIsum'])
+        ADX = []
+        DX = df['DX'].values
+        for i in range(len(df)):
+            if i < 2 * period - 1:
+                ADX.append(np.NaN)
+            elif i == 2 * period - 1:
+                ADX.append(df['DX'][i + 1 - period : i + 1].mean())
+            else:
+                ADX.append(((period-1)*ADX[i-1] + DX[i])/period)
+        df['ADX'] = np.array(ADX)
+        df.drop(['DMPlus', 'DMMinus', 'TRn', 'DMplusN', 'DMminusN', 'DIdiff', 'DIsum', 'DX'], axis=1, inplace=True)
+        df.dropna(inplace=True)
