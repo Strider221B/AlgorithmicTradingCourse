@@ -1,10 +1,14 @@
 import numpy as np
 import pandas as pd
+import statsmodels.api as sm
 
 class TechnicalIndicators:
     
     @staticmethod
-    def add_macd_signal(df: pd.DataFrame, fast_ma_period: int = 12, slow_ma_period: int = 26, signal_period: int = 9) -> None:
+    def add_macd_signal(df: pd.DataFrame,
+                        fast_ma_period: int = 12,
+                        slow_ma_period: int = 26,
+                        signal_period: int = 9) -> None:
         df['MA_Fast'] = df['Adj Close'].ewm(span=fast_ma_period, min_periods=fast_ma_period).mean()
         df['MA_Slow'] = df['Adj Close'].ewm(span=slow_ma_period, min_periods=slow_ma_period).mean()
         df['MACD'] = df['MA_Fast'] - df['MA_Slow']
@@ -61,9 +65,11 @@ class TechnicalIndicators:
     @staticmethod
     def add_adx(df: pd.DataFrame, period: int = 14) -> None:
         TechnicalIndicators.add_atr(df, period)
-        df['DMPlus'] = np.where((df['High'] - df['High'].shift(1)) > (df['Low'].shift(1) - df['Low']), df['High'] - df['High'].shift(1), 0)
+        df['DMPlus'] = np.where((df['High'] - df['High'].shift(1)) > (df['Low'].shift(1) - df['Low']),
+                                df['High'] - df['High'].shift(1), 0)
         df['DMPlus'] = np.where(df['DMPlus'] < 0, 0, df['DMPlus'])
-        df['DMMinus'] = np.where((df['Low'].shift(1) - df['Low']) > (df['High'] - df['High'].shift(1)), (df['Low'].shift(1) - df['Low']), 0)
+        df['DMMinus'] = np.where((df['Low'].shift(1) - df['Low']) > (df['High'] - df['High'].shift(1)),
+                                 (df['Low'].shift(1) - df['Low']), 0)
         df['DMMinus'] = np.where(df['DMMinus'] < 0, 0, df['DMMinus'])
         TRn = []
         DMplusN = []
@@ -102,5 +108,50 @@ class TechnicalIndicators:
             else:
                 ADX.append(((period-1)*ADX[i-1] + DX[i])/period)
         df['ADX'] = np.array(ADX)
-        df.drop(['DMPlus', 'DMMinus', 'TRn', 'DMplusN', 'DMminusN', 'DIdiff', 'DIsum', 'DX', 'DIminusN', 'DIplusN'], axis=1, inplace=True)
+        df.drop(['DMPlus', 'DMMinus', 'TRn', 'DMplusN', 'DMminusN', 'DIdiff', 'DIsum', 'DX', 'DIminusN', 'DIplusN'],
+                axis=1, inplace=True)
         df.dropna(inplace=True)
+    
+    @staticmethod
+    def add_obv(df: pd.DataFrame) -> None:
+        df['daily_ret'] = df['Adj Close'].pct_change()
+        df['direction'] = np.where(df['daily_ret'] >= 0, 1, -1)
+        df['direction'][0] = 0
+        df['vol_adj'] = df['Volume'] * df['direction']
+        df['obv'] = df['vol_adj'].cumsum()
+        df.drop(['daily_ret', 'direction', 'vol_adj'], axis=1, inplace=True)
+        df.dropna(inplace=True)
+    
+    @staticmethod
+    def calc_slope(series: pd.Series, period: int = 5) -> np.ndarray: # 5 -> past 1 week
+        series = (series - series.min()) / (series.max() - series.min())
+        x = np.arange(0, len(series))
+        x = (x - x.min()) / (x.max() - x.min())
+        slopes = [0] * (period - 1)
+        for i in range(period, len(series) + 1):
+            y_scaled = series[i - period: i]
+            x_scaled = x[:period]
+            x_scaled = sm.add_constant(x_scaled)
+            model = sm.OLS(y_scaled, x_scaled)
+            results = model.fit()
+            slopes.append(results.params[-1])
+        slope_angle = (np.rad2deg(np.arctan(np.array(slopes))))
+        return slope_angle
+    
+    @staticmethod
+    def add_slope(df: pd.DataFrame, column_name: str, period: int = 5) -> None: # 5 -> past 1 week
+        new_col_name = f'{column_name}_slope'
+        df[new_col_name] = TechnicalIndicators.calc_slope(df[column_name], period)
+    
+    @staticmethod
+    def slope_n_points(series: pd.Series, period: int = 5) -> np.ndarray:
+        y_span = series.max() - series.min()
+        x_span = 22
+        slopes = np.zeros(period - 1)
+        for i in range(period - 1, len(series)):
+            y2 = series[i]
+            y1 = series[i - n + 1]
+            slope = ((y2 - y1) / y_span) / (period / x_span)
+            slopes.append(slope)
+        slope_angle = (np.rad2deg(np.arctan(np.array(slopes))))
+        return slope_angle

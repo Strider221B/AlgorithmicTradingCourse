@@ -1,11 +1,8 @@
 import datetime as dt
 import numpy as np
 import pandas as pd
+import statsmodels.api as sm
 import yfinance as yf
-
-# Download historical data for required stocks
-ticker = "AAPL"
-ohlcv = yf.download(ticker,dt.date.today()-dt.timedelta(1825),dt.datetime.today())
 
 def ATR(DF,n):
     "function to calculate True Range and Average True Range"
@@ -107,3 +104,64 @@ def rsi_without_loop(df, n):
     d = d.drop(d.index[:(n-1)])
     rs = u.ewm(com=n,min_periods=n).mean()/d.ewm(com=n,min_periods=n).mean()
     return 100 - 100 / (1+rs)
+
+def OBV(DF):
+    """function to calculate On Balance Volume"""
+    df = DF.copy()
+    df['daily_ret'] = df['Adj Close'].pct_change()
+    df['direction'] = np.where(df['daily_ret']>=0,1,-1)
+    df['direction'][0] = 0
+    df['vol_adj'] = df['Volume'] * df['direction']
+    df['obv'] = df['vol_adj'].cumsum()
+    return df['obv']
+
+def BollBnd(DF,n):
+    "function to calculate Bollinger Band"
+    df = DF.copy()
+    df["MA"] = df['Adj Close'].rolling(n).mean()
+    df["BB_up"] = df["MA"] + 2*df['Adj Close'].rolling(n).std(ddof=0) #ddof=0 is required since we want to take the standard deviation of the population and not sample
+    df["BB_dn"] = df["MA"] - 2*df['Adj Close'].rolling(n).std(ddof=0) #ddof=0 is required since we want to take the standard deviation of the population and not sample
+    df["BB_width"] = df["BB_up"] - df["BB_dn"]
+    df.dropna(inplace=True)
+    return df
+
+def MACD(DF,a,b,c):
+    """function to calculate MACD
+       typical values a = 12; b =26, c =9"""
+    df = DF.copy()
+    df["MA_Fast"]=df["Adj Close"].ewm(span=a,min_periods=a).mean()
+    df["MA_Slow"]=df["Adj Close"].ewm(span=b,min_periods=b).mean()
+    df["MACD"]=df["MA_Fast"]-df["MA_Slow"]
+    df["Signal"]=df["MACD"].ewm(span=c,min_periods=c).mean()
+    df.dropna(inplace=True)
+    return df
+
+def slope(ser,n):
+    "function to calculate the slope of regression line for n consecutive points on a plot"
+    ser = (ser - ser.min())/(ser.max() - ser.min())
+    x = np.array(range(len(ser)))
+    x = (x - x.min())/(x.max() - x.min())
+    slopes = [i*0 for i in range(n-1)]
+    for i in range(n,len(ser)+1):
+        y_scaled = ser[i-n:i]
+        x_scaled = x[:n]
+        x_scaled = sm.add_constant(x_scaled)
+        model = sm.OLS(y_scaled,x_scaled)
+        results = model.fit()
+        slopes.append(results.params[-1])
+    slope_angle = (np.rad2deg(np.arctan(np.array(slopes))))
+    return np.array(slope_angle)
+
+def slope_n_points(ser,n):
+    '''function to calculate the slope of line connecting a point with n-previous point
+     slope assumes a frame with 22 units in the x axis and span of min to max in y axis'''
+    y_span = ser.max() - ser.min()
+    x_span = 22
+    slopes = [i*0 for i in range(n-1)]
+    for i in range(n-1,len(ser)):
+        y2 = ser[i]
+        y1 = ser[i-n+1]
+        slope = ((y2-y1)/y_span)/(n/x_span)
+        slopes.append(slope)
+    slope_angle = (np.rad2deg(np.arctan(np.array(slopes))))
+    return np.array(slope_angle)
