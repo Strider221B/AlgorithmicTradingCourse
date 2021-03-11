@@ -102,5 +102,5 @@ class TechnicalIndicators:
             else:
                 ADX.append(((period-1)*ADX[i-1] + DX[i])/period)
         df['ADX'] = np.array(ADX)
-        df.drop(['DMPlus', 'DMMinus', 'TRn', 'DMplusN', 'DMminusN', 'DIdiff', 'DIsum', 'DX'], axis=1, inplace=True)
+        df.drop(['DMPlus', 'DMMinus', 'TRn', 'DMplusN', 'DMminusN', 'DIdiff', 'DIsum', 'DX', 'DIminusN', 'DIplusN'], axis=1, inplace=True)
         df.dropna(inplace=True)
