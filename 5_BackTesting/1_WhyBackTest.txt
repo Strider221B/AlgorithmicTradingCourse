@@ -1,0 +1,8 @@
+Backtesting
+
+Test the strategy by applying the rules and trading signal criteria on historical data mimicking actual trading conditions.
+Factor in slippage, trading/brokerage cost when assesing the performance.
+Be conservative - err on the side of caution
+Backtesting is of critical importance in assessing the merit of a trading strategy / system
+Don't deploy strategy in live market until back tested
+Criticism - Since it is based on Historical data, it has little predictive value.
