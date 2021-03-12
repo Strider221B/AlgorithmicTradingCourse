@@ -37,3 +37,19 @@ class PerformanceMeasurements:
         neg_volatility = neg_returns.std() * 252**0.5
         sr = (cls.get_cagr_for(df) - risk_free_rate) / neg_volatility
         return sr
+    
+    @classmethod
+    def get_max_drawdown(cls, df: pd.DataFrame) -> float:
+        daily_ret = df['Adj Close'].pct_change().values
+        daily_ret[0] = 0
+        cum_return = (1 + daily_ret).cumprod()
+        cum_roll_max = np.maximum.accumulate(cum_return)
+        draw_down = cum_roll_max - cum_return
+        draw_down_pct = draw_down / cum_roll_max
+        max_dd = draw_down_pct.max()
+        return max_dd
+    
+    @classmethod
+    def get_calmar(cls, df: pd.DataFrame) -> float:
+        calmar = cls.get_cagr_for(df) / cls.get_max_drawdown(df)
+        return calmar
