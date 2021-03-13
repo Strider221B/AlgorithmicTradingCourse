@@ -18,10 +18,10 @@ class TechnicalIndicators:
         df.dropna(inplace=True)
 
     @staticmethod
-    def add_atr(df: pd.DataFrame, period: int = 20) -> None:
+    def add_atr(df: pd.DataFrame, period: int = 20, close_col_name: str = 'Adj Close') -> None:
         df['H-L'] = abs(df['High'] - df['Low'])
-        df['H-PC'] = abs(df['High'] - df['Adj Close'].shift(1))
-        df['L-PC'] = abs(df['Low'] - df['Adj Close'].shift(1))
+        df['H-PC'] = abs(df['High'] - df[close_col_name].shift(1))
+        df['L-PC'] = abs(df['Low'] - df[close_col_name].shift(1))
         df['TR'] = df[['H-L', 'H-PC', 'L-PC']].max(axis=1, skipna=False)
         df['ATR'] = df['TR'].rolling(period).mean()
         df.drop(['H-L', 'H-PC', 'L-PC'], axis=1, inplace=True)
