@@ -25,7 +25,8 @@ class TechnicalIndicators:
         df['TR'] = df[['H-L', 'H-PC', 'L-PC']].max(axis=1, skipna=False)
         df['ATR'] = df['TR'].rolling(period).mean()
         df.drop(['H-L', 'H-PC', 'L-PC'], axis=1, inplace=True)
-        df.dropna(inplace=True)
+#         df.dropna(inplace=True)
+        return df
         
     @staticmethod
     def add_bollinger(df: pd.DataFrame, period: int = 20) -> None:
@@ -114,8 +115,8 @@ class TechnicalIndicators:
         df.dropna(inplace=True)
     
     @staticmethod
-    def add_obv(df: pd.DataFrame) -> None:
-        df['daily_ret'] = df['Adj Close'].pct_change()
+    def add_obv(df: pd.DataFrame, close_col_name: str = 'Adj Close') -> None:
+        df['daily_ret'] = df[close_col_name].pct_change()
         df['direction'] = np.where(df['daily_ret'] >= 0, 1, -1)
         df['direction'][0] = 0
         df['vol_adj'] = df['Volume'] * df['direction']
@@ -132,6 +133,21 @@ class TechnicalIndicators:
         for i in range(period, len(series) + 1):
             y_scaled = series[i - period: i]
             x_scaled = x[:period]
+            x_scaled = sm.add_constant(x_scaled)
+            model = sm.OLS(y_scaled, x_scaled)
+            results = model.fit()
+            slopes.append(results.params[-1])
+        slope_angle = (np.rad2deg(np.arctan(np.array(slopes))))
+        return slope_angle
+    
+    @staticmethod
+    def calc_slope_v2(series: pd.Series, period: int = 5) -> np.ndarray: # 5 -> past 1 week
+        slopes = [0] * (period - 1)
+        for i in range(period, len(series) + 1):
+            y = series[i - period: i]
+            x = np.arange(0, period)
+            y_scaled = (y - y.min()) / (y.max() - y.min())
+            x_scaled = (x - x.min()) / (x.max() - x.min())
             x_scaled = sm.add_constant(x_scaled)
             model = sm.OLS(y_scaled, x_scaled)
             results = model.fit()
@@ -157,8 +173,12 @@ class TechnicalIndicators:
         slope_angle = (np.rad2deg(np.arctan(np.array(slopes))))
         return slope_angle
     
-    @staticmethod
-    def get_renko_df(df_orig: pd.DataFrame) -> pd.DataFrame:
+    @classmethod
+    def get_renko_df_yfinance(cls,
+                              df_orig: pd.DataFrame,
+                              max_brick_size: float = None,
+                              extended: bool = False,
+                              orig_close_col_name: str = 'Adj Close') -> pd.DataFrame:
         df = df_orig.copy()
         df.reset_index(inplace=True)
         df = df.iloc[:, [0, 1, 2, 3, 5, 6]]
@@ -168,8 +188,40 @@ class TechnicalIndicators:
                              "Open" : "open",
                              "Adj Close" : "close",
                              "Volume" : "volume"}, inplace = True)
-        df2 = Renko(df)
-        TechnicalIndicators.add_atr(df_orig, 120)
-        df2.brick_size = round(df_orig['ATR'][-1], 0)
+        return cls._get_renko_df(df_orig, df, max_brick_size, extended, orig_close_col_name)
+    
+    @classmethod
+    def get_renko_df_alpha_vantage(cls,
+                                   df_orig: pd.DataFrame,
+                                   max_brick_size: float = None,
+                                   extended: bool = False,
+                                   orig_close_col_name: str = 'Adj Close') -> pd.DataFrame:
+        df = df_orig.copy()
+        df.reset_index(inplace=True)
+        df = df.iloc[:, [0, 1, 2, 3, 4, 5]]
+        df.columns = ['date','open','high','low','close','volume']
+        return cls._get_renko_df(df_orig, df, max_brick_size, extended, orig_close_col_name)
+    
+    @classmethod
+    def _get_renko_df(cls,
+                      df_orig: pd.DataFrame,
+                      df_for_renko: pd.DataFrame,
+                      max_brick_size: float,
+                      extended: bool,
+                      orig_close_col_name: str) -> pd.DataFrame:
+        df2 = Renko(df_for_renko)
+        cls.add_atr(df_orig, 120, orig_close_col_name)
+        if max_brick_size is not None:
+            df2.brick_size = max(max_brick_size, round(df_orig['ATR'][-1], 0))
+        else:
+            df2.brick_size = round(df_orig['ATR'][-1], 0)
         renko_df = df2.get_ohlc_data()
+        if extended == False:
+            return renko_df
+        bar_num = np.where(renko_df['uptrend'] == True, 1, np.where(renko_df['uptrend'] == False, -1, 0))
+        for i in range(1, len(bar_num)):
+            if (bar_num[i] > 0 and bar_num[i-1] > 0) or (bar_num[i] < 0 and bar_num[i-1] < 0):
+                bar_num[i] += bar_num[i-1]
+        renko_df['bar_num'] = bar_num
+        renko_df.drop_duplicates(subset='date', keep='last', inplace=True)
         return renko_df
